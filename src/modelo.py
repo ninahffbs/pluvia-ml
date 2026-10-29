@@ -253,15 +253,19 @@ def bootstrap_dias(datas, y, scores, B=200, semente=SEMENTE):
 class ModeloRisco:
     """Preparador + estimador + tabela de propensao. Recebe um DataFrame com as colunas de 'features' e 'bairro'."""
 
-    def __init__(self, estimador, preparador, features, tabela_propensao, nome, alvo, usa_propensao=True):
+    def __init__(self, estimador, preparador, features, tabela_propensao, nome, alvo, usa_propensao=True,
+                 propensao_desconhecido=prep.PROPENSAO_NEUTRA):
         self.estimador, self.preparador, self.features = estimador, preparador, list(features)
         self.tabela_propensao, self.nome, self.alvo, self.usa_propensao = tabela_propensao, nome, alvo, usa_propensao
+        self.propensao_desconhecido = propensao_desconhecido     # bairro fora da tabela (sem historico de eventos)
         self.cortes_ = None                                      # preenchido depois: {"top5": x, "niveis": [c1, c2, c3]}
 
     def _matriz(self, df):
         X = df[self.features].copy()
         if self.usa_propensao:
-            X["propensao_bairro"] = prep.aplicar_propensao(df, self.tabela_propensao)
+            # getattr: modelos salvos antes deste atributo continuam carregando (com o valor neutro antigo)
+            padrao = getattr(self, "propensao_desconhecido", prep.PROPENSAO_NEUTRA)
+            X["propensao_bairro"] = prep.aplicar_propensao(df, self.tabela_propensao, padrao)
         return self.preparador.transform(X)
 
     def prever(self, df):
@@ -282,4 +286,5 @@ def ajustar_final(df, alvo, features, nome, params=None, usa_propensao=True):
     preparador = prep.Preparador(**PREP_KW[nome]).fit(X)
     est = FABRICAS[nome](**params).fit(preparador.transform(X), df[alvo].values)
     tabela = prep.tabela_propensao(df, alvo, anos) if usa_propensao else None
-    return ModeloRisco(est, preparador, features, tabela, nome, alvo, usa_propensao)
+    desconhecido = prep.propensao_sem_evento(df, alvo, anos) if usa_propensao else prep.PROPENSAO_NEUTRA
+    return ModeloRisco(est, preparador, features, tabela, nome, alvo, usa_propensao, desconhecido)
