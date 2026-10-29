@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MLflow (runs, artefatos e modelos registrados)
+mlruns/
+mlartifacts/
+notebooks/mlruns/
+mlflow.db
+
+# Dados (brutos, processados e INMET) - podem ser grandes/reprodutíveis
+raw/
+inmet_a301/
+processed/
+
+# Modelos treinados
+modelos/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.onnx
+
+# Dados em formatos comuns
+*.csv
+*.parquet
+*.feather
+*.zip
+
+# Segredos
+.env
+*.key
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
