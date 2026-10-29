@@ -67,8 +67,16 @@ def tabela_propensao(df, alvo, anos):
     return (ev + 1) / (ev.mean() + 1)
 
 
-def aplicar_propensao(df, tabela):
-    return df["bairro"].map(tabela).fillna(PROPENSAO_NEUTRA)
+def propensao_sem_evento(df, alvo, anos):
+    """Propensao de um bairro com zero eventos nos 'anos' (mesma suavizacao de tabela_propensao).
+    E o valor certo para bairros fora do dataset: o dataset so tem bairros com algum registro, logo quem
+    nao aparece nunca alagou no periodo e nao deve receber a propensao media."""
+    ev = df.loc[df["ano"].isin(anos)].groupby("bairro")[alvo].sum()
+    return float(1 / (ev.mean() + 1))
+
+
+def aplicar_propensao(df, tabela, padrao=PROPENSAO_NEUTRA):
+    return df["bairro"].map(tabela).fillna(padrao)
 
 
 def propensao_treino(df, alvo, anos_treino):
