@@ -45,3 +45,9 @@ modelos/
 .DS_Store
 .idea/
 .vscode/
+
+# Embarcado (ESP32-CAM)
+embarcado/firmware/include/config.h
+embarcado/firmware/.pio/
+embarcado/sensores.json
+embarcado/dados/

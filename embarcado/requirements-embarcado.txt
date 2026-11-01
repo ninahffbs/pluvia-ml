@@ -1,0 +1,2 @@
+# receptor MQTT (alem de requirements-ml.txt, necessario para carregar o modelo)
+paho-mqtt==2.1.0
