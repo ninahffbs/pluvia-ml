@@ -51,3 +51,4 @@ embarcado/firmware/include/config.h
 embarcado/firmware/.pio/
 embarcado/sensores.json
 embarcado/dados/
+embarcado/firmware/compile_commands.json
