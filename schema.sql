@@ -112,18 +112,16 @@ CREATE TABLE previsoes (
   modelo_versao text
 );
 
-CREATE TABLE leituras_sensor (                     -- ESP32-CAM via MQTT (embarcado/receptor.py)
+CREATE TABLE leituras_sensor (                     -- ESP32-CAM via MQTT (embarcado/coletor.py)
   leitura_id    bigserial PRIMARY KEY,
   sensor_id     text NOT NULL,
   unidade_id    int REFERENCES unidades,
   ts_utc        timestamptz NOT NULL,
-  nivel_agua_cm real,                              -- altura de montagem - distancia medida
-  distancia_cm  real,                              -- leitura bruta do ultrassom
-  rssi          smallint,                          -- sinal Wi-Fi (dBm)
-  nivel_risco   smallint CHECK (nivel_risco BETWEEN 0 AND 3)   -- maior entre o medido e o previsto, enviado a placa
+  distancia_cm  real,                              -- leitura bruta do ultrassom (2-400 cm)
+  nivel_agua_cm real                               -- altura de montagem - distancia medida
 );
 
-CREATE TABLE fotos_sensor (                        -- JPEG da ESP32-CAM; o arquivo fica em disco/objeto, aqui so o caminho
+CREATE TABLE fotos_sensor (                        -- JPEG da ESP32-CAM (topico pluvia/<id>/camera); aqui so o caminho
   foto_id       bigserial PRIMARY KEY,
   sensor_id     text NOT NULL,
   ts_utc        timestamptz NOT NULL,

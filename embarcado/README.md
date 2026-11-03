@@ -1,91 +1,48 @@
-# ESP32-CAM do Pluvia
+# Pluvia — ESP32-CAM e ultrassom
 
-A placa mede o nível da água com um sensor ultrassônico, tira fotos do ponto monitorado e publica tudo por MQTT.
-O `receptor.py` grava as leituras e as fotos e devolve o nível de risco (0–3), que a placa usa para acender o LED e
-ajustar a frequência de leitura e de foto.
+Configuracao preparada para **AI Thinker ESP32-CAM / OV2640**, conforme a placa `esp32cam` do PlatformIO.
 
-```
-ESP32-CAM ──leitura (JSON) / foto (JPEG)──▶ broker MQTT ──▶ receptor.py ──▶ SQLite + fotos/
-    ▲                                                            │
-    └──────────────── risco (JSON, retido) ◀─────────────────────┘   (sensor + modelo do bairro)
-```
+Trazido do branch `camera` de [Sofia1653/Pluvia](https://github.com/Sofia1653/Pluvia/tree/camera) (commit `7a40e99`). O firmware fica em `embarcado/firmware/` (projeto PlatformIO) e o coletor em `embarcado/coletor.py`.
 
-## Tópicos
+## Configurar e executar
 
-| Tópico | Sentido | Conteúdo |
-|---|---|---|
-| `pluvia/sensor/<id>/leitura` | placa → servidor | `{"ts", "distancia_cm", "nivel_agua_cm", "rssi", "uptime_s"}` (`ts`=0 se a placa ainda não tem hora) |
-| `pluvia/sensor/<id>/foto` | placa → servidor | JPEG binário (640×480, ~20–40 KB) |
-| `pluvia/sensor/<id>/status` | placa → servidor | `online` / `offline` (retido; `offline` é publicado pelo broker se a placa cair) |
-| `pluvia/sensor/<id>/risco` | servidor → placa | `{"nivel", "nivel_sensor", "nivel_modelo", "intervalo_leitura_s", "intervalo_foto_s"}` (retido) |
-| `pluvia/sensor/<id>/comando` | servidor → placa | `foto`: tira uma foto agora |
+1. Copie `embarcado/firmware/include/secrets.example.h` para `embarcado/firmware/include/secrets.h`.
+2. Preencha o nome e a senha do Wi-Fi de 2,4 GHz. Configure `MQTT_BROKER` com o IPv4 do computador na mesma rede da placa. O exemplo usa `172.26.68.103`, observado nesta maquina; confira novamente com `ipconfig` se a rede mudar. Nao use `127.0.0.1` no ESP32.
+3. Inicie o broker com `mosquitto -c embarcado/mosquitto.conf -v` (use apenas uma instancia na porta 1883). A rede precisa permitir acesso da placa ao computador nessa porta.
+4. Compile e grave com PlatformIO, dentro de `embarcado/firmware`: `pio run -t upload`. Abra o Monitor Serial a **9600 baud**. O codigo imprime o resultado da camera, o IP, a conexao MQTT e cada envio.
+5. Instale a dependencia Python, se necessario: `python -m pip install "paho-mqtt>=2,<3"`.
+6. No computador do broker, execute `PLUVIA_BROKER=<ip do broker> python embarcado/coletor.py`. Reinicie o coletor se ele ja estava aberto antes da atualizacao.
 
-**Nível de risco** = o maior entre:
-- `nivel_sensor`: quantos limiares de `limiares_cm` (em `sensores.json`) a água ultrapassou;
-- `nivel_modelo`: o nível do `ModeloRisco` para o bairro do sensor **no dia**, usando a linha de hoje em
-  `features_dia.csv` (colunas de `entrada_api` da ficha do modelo + `bairro` + `data`). Sem essa linha, o modelo
-  fica de fora (`null`) e vale só a medida local. O CSV é recarregado sozinho quando muda.
+`embarcado/firmware/include/secrets.h` ja esta ignorado pelo Git. Sem esse arquivo, o firmware compila com valores de exemplo e nao conectara ao Wi-Fi ate serem preenchidos.
 
-| Nível | Leitura a cada | Foto a cada |
-|---|---|---|
-| 0 | 5 min | 30 min |
-| 1 | 2 min | 10 min |
-| 2 | 1 min | 5 min |
-| 3 | 30 s | 2 min |
+## Ligacoes do ultrassom
 
-## Montagem
+O firmware preserva **TRIG no GPIO14** e **ECHO no GPIO15**, com GND comum. Esses pinos sao compartilhados com microSD: este projeto nao inicializa o cartao; use sem cartao inserido.
 
-| Peça | Ligação na ESP32-CAM (AI-Thinker) |
-|---|---|
-| Sensor ultrassônico JSN-SR04T (à prova d'água) ou HC-SR04 | VCC → 5V, GND → GND, TRIG → GPIO13, ECHO → GPIO14 |
-| Divisor no ECHO (se o sensor estiver em 5 V) | ECHO → 1 kΩ → GPIO14 → 2 kΩ → GND |
-| Alimentação | 5 V / 2 A estável (com menos, a placa reinicia por *brownout* ao ligar Wi-Fi + câmera) |
-| Gravação | adaptador USB-serial (FTDI) em U0R/U0T, com GPIO0 → GND durante a gravação |
+Se o sensor for HC-SR04 de 5 V, alimente conforme sua especificacao e use divisor resistivo/conversor para reduzir ECHO a 3,3 V antes do GPIO15. Por exemplo: ECHO → 1 kohm → GPIO15 → 2 kohm → GND. Nao conecte ECHO de 5 V diretamente ao ESP32. Use fonte estavel apropriada para a ESP32-CAM; resets durante fotos podem indicar alimentacao insuficiente.
 
-O sensor fica apontado para baixo, sobre o canal ou a rua. Meça a distância até o fundo seco e coloque em
-`ALTURA_SENSOR_CM`. O JSN-SR04T não mede abaixo de ~20 cm: monte-o pelo menos 20 cm acima do nível máximo esperado.
-O cartão SD não é usado (GPIO13/14 são compartilhados com ele).
+## Dados recebidos
 
-## Como rodar
+- A cada 2 segundos: JSON em `pluvia/sensor01/leituras`, com `sensor_id` e `distancia_cm`; gravado em `embarcado/dados/leituras.csv`.
+- A cada 10 segundos: foto JPEG 320x240 em `pluvia/sensor01/camera`; gravada em `embarcado/dados/imagens/sensor01/`, com data e hora no nome. Sao fotos periodicas, sem streaming de video ou classificacao de imagem.
+- Distancias fora de 2–400 cm ou sem eco sao descartadas e informadas no Serial. A camera continua enviando mesmo sem leitura valida do ultrassom.
+- Se a camera nao inicializar, o ultrassom continua funcionando. Confira o cabo da camera/modelo da placa e reinicie apos corrigir.
 
-1. **Broker** (no computador/servidor):
-   ```bash
-   brew install mosquitto
-   ```
-   ```bash
-   mosquitto -c embarcado/mosquitto.conf
-   ```
-2. **Receptor**:
-   ```bash
-   pip install -r requirements-ml.txt -r embarcado/requirements-embarcado.txt
-   ```
-   ```bash
-   cp embarcado/sensores.example.json embarcado/sensores.json
-   ```
-   Edite `sensores.json` (o `bairro` precisa ser escrito como na coluna `bairro` do dataset) e rode:
-   ```bash
-   python embarcado/receptor.py --config embarcado/sensores.json
-   ```
-3. **Firmware** (PlatformIO):
-   ```bash
-   cp embarcado/firmware/include/config.example.h embarcado/firmware/include/config.h
-   ```
-   Preencha Wi-Fi, IP do broker e `SENSOR_ID`, depois grave e abra o monitor serial:
-   ```bash
-   cd embarcado/firmware && pio run -t upload && pio device monitor
-   ```
+As fotos se acumulam em disco; remova ou arquive conforme necessario. O timestamp e o horario local do computador coletor.
 
-**Testar sem a placa:** com o broker e o receptor rodando,
+## Diagnostico
+
+- `Wi-Fi desconectado`: confira credenciais, rede de 2,4 GHz e sinal.
+- `Falha MQTT`: confira IP do broker, porta 1883, firewall e acesso entre os dispositivos.
+- Coletor conectado, mas sem dados: confira no Serial se a placa informa `MQTT conectado` e `publicado`.
+- `Ultrassom sem leitura valida`: confira pinos, alimentacao, divisor de ECHO e objeto dentro da faixa do sensor.
+
+Referencias de implementacao: [CameraWebServer da Espressif](https://github.com/espressif/arduino-esp32/tree/master/libraries/ESP32/examples/Camera/CameraWebServer) e [API PubSubClient](https://pubsubclient.knolleary.net/api.html).
+
+## Testes do coletor
+
 ```bash
-python embarcado/simular_sensor.py --sensor esp32cam-01 --niveis 5 20 40 60
+python -m unittest embarcado/test_coletor.py
 ```
 
-Dados gravados em `embarcado/dados/embarcado.db` (tabelas `leituras_sensor` e `fotos_sensor`, as mesmas do
-`schema.sql`) e as fotos em `embarcado/dados/fotos/<sensor_id>/`.
-
-## Limitações
-- O nível medido é **local** (um ponto) e o modelo é **por bairro e dia**: os dois se complementam, mas a placa não
-  substitui a previsão nem vice-versa.
-- O `features_dia.csv` ainda não é gerado por nenhuma tarefa: ele é a saída esperada do DAG (chuva do dia +
-  histórico por bairro). Até lá, só o nível medido entra no risco.
-- MQTT sem TLS (porta 1883). Para expor o broker fora da rede local, use usuário/senha e TLS (porta 8883).
+Para testar so a camera (pagina com foto no navegador): `pio run -e teste-camera -t upload`.

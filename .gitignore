@@ -47,8 +47,7 @@ modelos/
 .vscode/
 
 # Embarcado (ESP32-CAM)
-embarcado/firmware/include/config.h
+embarcado/firmware/include/secrets.h
 embarcado/firmware/.pio/
-embarcado/sensores.json
 embarcado/dados/
 embarcado/firmware/compile_commands.json
