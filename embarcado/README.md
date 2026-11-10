@@ -46,3 +46,9 @@ python -m unittest embarcado/test_coletor.py
 ```
 
 Para testar so a camera (pagina com foto no navegador): `pio run -e teste-camera -t upload`.
+
+## Banco de dados e alerta combinado
+
+- **PostgreSQL (opcional):** defina `PLUVIA_DB_URL=postgresql://usuario:senha@host/pluvia` (requer `pip install "psycopg[binary]"`) e o coletor tambem grava em `leituras_sensor` e `fotos_sensor` (ver `schema.sql`). Com `PLUVIA_ALTURA_CM` (altura de montagem do sensor, em cm) a coluna `nivel_agua_cm` e preenchida. Se o banco cair, o coletor segue gravando o CSV e os JPEGs.
+- **Alerta combinado:** `src/alerta.py` junta a previsao do `ModeloRisco` com a ultima leitura do ultrassom (`leituras.csv`, ignorada se tiver mais de 10 min) e devolve o maior entre os dois niveis (0-3). Os limiares de nivel da agua (`LIMIARES_AGUA_CM`) sao provisorios e precisam ser calibrados com a instalacao real.
+- Testes: `python -m unittest tests.test_alerta`.
